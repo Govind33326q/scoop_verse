@@ -1,0 +1,10 @@
+const express=require('express'),{Pool}=require('pg'),fs=require('fs'),path=require('path');
+const app=express(),db=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:false}});
+app.use(express.json({limit:'100kb'}));app.use(express.static(path.join(__dirname,'public')));
+const wrap=f=>(q,r)=>f(q,r).catch(e=>{console.error(e);r.status(500).json({error:'server'})});
+app.get('/health',wrap(async(q,r)=>{await db.query('select 1');r.json({ok:1})}));
+app.get('/api/products',wrap(async(q,r)=>{const x=await db.query('select id,name,description as "desc",price_inr::int as price,category as cat,badge as b,colors as c from products order by created_at');r.json(x.rows.map(p=>({...p,tag:[],r:4.5,custom:1})))}));
+app.post('/api/products',wrap(async(q,r)=>{const p=q.body;if(!p.id||!p.name||!(p.price>0))return r.status(400).json({error:'bad'});await db.query('insert into products(id,name,description,price_inr,category,badge,colors) values($1,$2,$3,$4,$5,$6,$7) on conflict do nothing',[p.id,p.name,p.desc,p.price,p.cat,p.b,p.c]);r.json({ok:1})}));
+app.delete('/api/products/:id',wrap(async(q,r)=>{await db.query('delete from products where id=$1',[q.params.id]);r.json({ok:1})}));
+app.post('/api/orders',wrap(async(q,r)=>{const o=q.body;if(!o.id||!Array.isArray(o.items))return r.status(400).json({error:'bad'});await db.query('insert into orders(id,customer,items,subtotal,discount,tax,total,status) values($1,$2,$3,$4,$5,$6,$7,$8) on conflict do nothing',[o.id,JSON.stringify(o.cust),JSON.stringify(o.items),o.s,o.d,o.tax,o.t,'demo']);r.json({ok:1})}));
+(async()=>{await db.query(fs.readFileSync(path.join(__dirname,'schema.sql'),'utf8'));app.listen(3000,()=>console.log('Scoopverse up on :3000'))})().catch(e=>{console.error('Startup failed:',e.message);process.exit(1)});

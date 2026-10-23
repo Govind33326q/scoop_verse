@@ -1,0 +1,11 @@
+[Unit]
+Description=Scoopverse app
+After=network.target
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/app
+EnvironmentFile=/etc/scoopverse.env
+ExecStart=/usr/bin/env node server.js
+Restart=always
+[Install]
+WantedBy=multi-user.target
